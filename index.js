@@ -29,9 +29,10 @@ app.all('*', async (req, res) => {
   }
 
   try {
-    console.log('🔄 Redirection vers SaasPay...', req.body);
+    console.log('🔄 Redirection vers SaasPay API...', req.body);
 
-    const saaspayResponse = await fetch('https://app.saspay.me/api/v1/payouts', {
+    // URL API exacte : api.saspay.me/v1/payouts
+    const saaspayResponse = await fetch('https://api.saspay.me/v1/payouts', {
       method: 'POST',
       headers: {
         'Authorization': authHeader,
