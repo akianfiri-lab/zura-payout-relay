@@ -47,8 +47,8 @@ app.all('*', async (req, res) => {
     // Adaptation automatique du payload pour SaasPay
     let payload = req.body;
 
-    if (!payload.currency || !payload.recipient) {
-      const phoneClean = String(payload.phone || '').replace('+', '');
+    if (!payload.currency || !payload.recipient || !payload.recipient.msisdn) {
+      const phoneClean = String(payload.phone || payload.recipient?.phone_number || '').replace('+', '').trim();
       
       // Déduction du pays selon l'indicatif téléphonique
       let countryCode = 'CI';
@@ -57,7 +57,7 @@ app.all('*', async (req, res) => {
       if (phoneClean.startsWith('225')) countryCode = 'CI';
 
       // Normalisation du mode de paiement (wave, mtn, orange, moov)
-      const rawOperator = String(payload.operator || 'wave').toLowerCase();
+      const rawOperator = String(payload.operator || payload.method || 'wave').toLowerCase();
       let paymentMethod = 'wave';
       if (rawOperator.includes('mtn')) paymentMethod = 'mtn';
       else if (rawOperator.includes('orange')) paymentMethod = 'orange';
@@ -73,8 +73,8 @@ app.all('*', async (req, res) => {
           email: payload.customer_email || 'contact@usezura.app'
         },
         recipient: {
-          phone_number: phoneClean,
-          name: payload.recipient_name || 'Boutique JEUX PC 225'
+          msisdn: phoneClean,
+          name: payload.recipient_name || payload.recipient?.name || 'Boutique JEUX PC 225'
         }
       };
     }
