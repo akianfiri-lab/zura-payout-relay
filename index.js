@@ -28,11 +28,11 @@ app.all('*', async (req, res) => {
   }
 
   try {
-    // Horodatage pour éviter les erreurs 409 (doublons rejetés par SaasPay lors des relances)
+    // Clé strictement unique à chaque tentative pour éliminer l'erreur 409
     const baseKey = req.headers['idempotency-key'] || 'payout';
-    const uniqueIdempotencyKey = `${baseKey}_${Date.now()}`;
+    const uniqueIdempotencyKey = `${baseKey}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
-    console.log(`🔄 Redirection vers SaasPay API (payouts/initialize) [Key: ${uniqueIdempotencyKey}]...`, req.body);
+    console.log(`🔄 Redirection vers SaasPay API [Key: ${uniqueIdempotencyKey}]...`, req.body);
 
     const saaspayResponse = await fetch('https://api.saspay.me/api/v1/payouts/initialize/', {
       method: 'POST',
@@ -46,9 +46,33 @@ app.all('*', async (req, res) => {
 
     const text = await saaspayResponse.text();
     let data;
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    try { 
+      data = JSON.parse(text); 
+    } catch { 
+      data = { raw: text }; 
+    }
 
     console.log(`✅ Réponse SaasPay (${saaspayResponse.status}):`, data);
+
+    // Formatage propre de l'erreur pour éviter l'affichage "[object Object]" dans l'admin Zura
+    if (!saaspayResponse.ok) {
+      let extractedError = 'Erreur inconnue de SaasPay';
+      if (typeof data === 'object' && data !== null) {
+        if (typeof data.error === 'object' && data.error !== null) {
+          extractedError = data.error.message || JSON.stringify(data.error);
+        } else {
+          extractedError = data.message || data.error || data.detail || JSON.stringify(data);
+        }
+      } else {
+        extractedError = String(data);
+      }
+
+      return res.status(saaspayResponse.status).json({
+        error: extractedError,
+        raw: data
+      });
+    }
+
     return res.status(saaspayResponse.status).json(data);
   } catch (error) {
     console.error('❌ Erreur lors du transfert :', error);
