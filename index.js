@@ -3,12 +3,6 @@ const app = express();
 
 app.use(express.json());
 
-// Récupération et affichage automatique de l'IP publique de Render dans les logs
-fetch('https://api.ipify.org?format=json')
-  .then(res => res.json())
-  .then(data => console.log(`🌐 ADRESSE IP PUBLIQUE DE RENDER : ${data.ip}`))
-  .catch(err => console.error('Erreur récupération IP:', err));
-
 // Log systématique de chaque requête reçue
 app.use((req, res, next) => {
   console.log(`[${new Date().toLocaleTimeString()}] REQUÊTE : ${req.method} ${req.url}`);
@@ -17,11 +11,27 @@ app.use((req, res, next) => {
 
 const RELAY_SECRET = process.env.RELAY_SECRET || "zura_secret_relay_key_2026";
 
-app.all('*', async (req, res) => {
-  if (req.method === 'GET') {
-    return res.status(200).send('Relais Zura -> SaasPay OK');
+// Affiche directement l'IP publique dans ton navigateur
+app.get('/', async (req, res) => {
+  try {
+    const ipRes = await fetch('https://api.ipify.org?format=json');
+    const ipData = await ipRes.json();
+    console.log(`🌐 IP PUBLIQUE RENDER : ${ipData.ip}`);
+    
+    return res.status(200).send(`
+      <div style="font-family: Arial, sans-serif; padding: 40px; text-align: center; background: #0f172a; color: white; min-height: 100vh;">
+        <h2>Relais Zura ➔ SaasPay OK ✅</h2>
+        <p style="font-size: 18px; color: #94a3b8;">Adresse IP publique de ton serveur Render :</p>
+        <h1 style="color: #38bdf8; background: #1e293b; display: inline-block; padding: 15px 30px; border-radius: 12px; font-size: 36px; letter-spacing: 2px;">${ipData.ip}</h1>
+        <p style="color: #cbd5e1; margin-top: 20px;">Copie cette adresse IP et colle-la dans la whitelist Payout de SaasPay.</p>
+      </div>
+    `);
+  } catch (err) {
+    return res.status(200).send('Relais Zura -> SaasPay OK (Erreur lors de la récupération de l\'IP)');
   }
+});
 
+app.all('*', async (req, res) => {
   const clientSecret = req.headers['x-relay-secret'];
   if (clientSecret !== RELAY_SECRET) {
     console.error('❌ Secret relais invalide');
