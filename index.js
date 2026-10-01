@@ -11,23 +11,20 @@ app.use((req, res, next) => {
 
 const RELAY_SECRET = process.env.RELAY_SECRET || "zura_secret_relay_key_2026";
 
-// Affiche directement l'IP publique dans ton navigateur
+// Affichage de l'IP sur la racine
 app.get('/', async (req, res) => {
   try {
     const ipRes = await fetch('https://api.ipify.org?format=json');
     const ipData = await ipRes.json();
-    console.log(`🌐 IP PUBLIQUE RENDER : ${ipData.ip}`);
-    
     return res.status(200).send(`
       <div style="font-family: Arial, sans-serif; padding: 40px; text-align: center; background: #0f172a; color: white; min-height: 100vh;">
         <h2>Relais Zura ➔ SaasPay OK ✅</h2>
-        <p style="font-size: 18px; color: #94a3b8;">Adresse IP publique de ton serveur Render :</p>
-        <h1 style="color: #38bdf8; background: #1e293b; display: inline-block; padding: 15px 30px; border-radius: 12px; font-size: 36px; letter-spacing: 2px;">${ipData.ip}</h1>
-        <p style="color: #cbd5e1; margin-top: 20px;">Copie cette adresse IP et colle-la dans la whitelist Payout de SaasPay.</p>
+        <p style="font-size: 18px; color: #94a3b8;">Adresse IP publique Render :</p>
+        <h1 style="color: #38bdf8; background: #1e293b; display: inline-block; padding: 15px 30px; border-radius: 12px; font-size: 36px;">${ipData.ip}</h1>
       </div>
     `);
   } catch (err) {
-    return res.status(200).send('Relais Zura -> SaasPay OK (Erreur lors de la récupération de l\'IP)');
+    return res.status(200).send('Relais Zura -> SaasPay OK');
   }
 });
 
@@ -47,7 +44,42 @@ app.all('*', async (req, res) => {
     const baseKey = req.headers['idempotency-key'] || 'payout';
     const uniqueIdempotencyKey = `${baseKey}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
-    console.log(`🔄 Redirection vers SaasPay API [Key: ${uniqueIdempotencyKey}]...`, req.body);
+    // Adaptation automatique du payload pour SaasPay
+    let payload = req.body;
+
+    if (!payload.currency || !payload.recipient) {
+      const phoneClean = String(payload.phone || '').replace('+', '');
+      
+      // Déduction du pays selon l'indicatif téléphonique
+      let countryCode = 'CI';
+      if (phoneClean.startsWith('229')) countryCode = 'BJ';
+      if (phoneClean.startsWith('221')) countryCode = 'SN';
+      if (phoneClean.startsWith('225')) countryCode = 'CI';
+
+      // Normalisation du mode de paiement (wave, mtn, orange, moov)
+      const rawOperator = String(payload.operator || 'wave').toLowerCase();
+      let paymentMethod = 'wave';
+      if (rawOperator.includes('mtn')) paymentMethod = 'mtn';
+      else if (rawOperator.includes('orange')) paymentMethod = 'orange';
+      else if (rawOperator.includes('moov')) paymentMethod = 'moov';
+
+      payload = {
+        amount: Number(payload.amount),
+        currency: 'XOF',
+        country: countryCode,
+        method: paymentMethod,
+        customer: {
+          name: payload.customer_name || 'Vendeur Zura',
+          email: payload.customer_email || 'contact@usezura.app'
+        },
+        recipient: {
+          phone_number: phoneClean,
+          name: payload.recipient_name || 'Boutique JEUX PC 225'
+        }
+      };
+    }
+
+    console.log(`🔄 Transfert vers SaasPay API [Key: ${uniqueIdempotencyKey}]...`, JSON.stringify(payload));
 
     const saaspayResponse = await fetch('https://api.saspay.me/api/v1/payouts/initialize/', {
       method: 'POST',
@@ -56,7 +88,7 @@ app.all('*', async (req, res) => {
         'Content-Type': 'application/json',
         'Idempotency-Key': uniqueIdempotencyKey
       },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify(payload)
     });
 
     const text = await saaspayResponse.text();
@@ -70,7 +102,7 @@ app.all('*', async (req, res) => {
     console.log(`✅ Réponse SaasPay (${saaspayResponse.status}):`, data);
 
     if (!saaspayResponse.ok) {
-      let extractedError = 'Erreur inconnue de SaasPay';
+      let extractedError = 'Erreur lors de l\'initialisation SaasPay';
       if (typeof data === 'object' && data !== null) {
         if (typeof data.error === 'object' && data.error !== null) {
           extractedError = data.error.message || JSON.stringify(data.error);
