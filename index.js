@@ -28,15 +28,18 @@ app.all('*', async (req, res) => {
   }
 
   try {
-    console.log('🔄 Redirection vers SaasPay API (payouts/initialize)...', req.body);
+    // Horodatage pour éviter les erreurs 409 (doublons rejetés par SaasPay lors des relances)
+    const baseKey = req.headers['idempotency-key'] || 'payout';
+    const uniqueIdempotencyKey = `${baseKey}_${Date.now()}`;
 
-    // URL exacte issue de la doc officielle SasPay
+    console.log(`🔄 Redirection vers SaasPay API (payouts/initialize) [Key: ${uniqueIdempotencyKey}]...`, req.body);
+
     const saaspayResponse = await fetch('https://api.saspay.me/api/v1/payouts/initialize/', {
       method: 'POST',
       headers: {
         'Authorization': authHeader,
         'Content-Type': 'application/json',
-        'Idempotency-Key': req.headers['idempotency-key'] || ''
+        'Idempotency-Key': uniqueIdempotencyKey
       },
       body: JSON.stringify(req.body)
     });
