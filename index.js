@@ -11,7 +11,6 @@ app.use((req, res, next) => {
 
 const RELAY_SECRET = process.env.RELAY_SECRET || "zura_secret_relay_key_2026";
 
-// Accepte TOUTES les routes (*), que Supabase appelle / ou /api/payout
 app.all('*', async (req, res) => {
   if (req.method === 'GET') {
     return res.status(200).send('Relais Zura -> SaasPay OK');
@@ -29,10 +28,10 @@ app.all('*', async (req, res) => {
   }
 
   try {
-    console.log('🔄 Redirection vers SaasPay API...', req.body);
+    console.log('🔄 Redirection vers SaasPay API (payouts/initialize)...', req.body);
 
-    // URL API exacte : https://api.saspay.me/api/v1/payouts
-    const saaspayResponse = await fetch('https://api.saspay.me/api/v1/payouts', {
+    // URL exacte issue de la doc officielle SasPay
+    const saaspayResponse = await fetch('https://api.saspay.me/api/v1/payouts/initialize/', {
       method: 'POST',
       headers: {
         'Authorization': authHeader,
