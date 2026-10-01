@@ -3,6 +3,12 @@ const app = express();
 
 app.use(express.json());
 
+// Récupération et affichage automatique de l'IP publique de Render dans les logs
+fetch('https://api.ipify.org?format=json')
+  .then(res => res.json())
+  .then(data => console.log(`🌐 ADRESSE IP PUBLIQUE DE RENDER : ${data.ip}`))
+  .catch(err => console.error('Erreur récupération IP:', err));
+
 // Log systématique de chaque requête reçue
 app.use((req, res, next) => {
   console.log(`[${new Date().toLocaleTimeString()}] REQUÊTE : ${req.method} ${req.url}`);
@@ -28,7 +34,6 @@ app.all('*', async (req, res) => {
   }
 
   try {
-    // Clé strictement unique à chaque tentative pour éliminer l'erreur 409
     const baseKey = req.headers['idempotency-key'] || 'payout';
     const uniqueIdempotencyKey = `${baseKey}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
@@ -54,7 +59,6 @@ app.all('*', async (req, res) => {
 
     console.log(`✅ Réponse SaasPay (${saaspayResponse.status}):`, data);
 
-    // Formatage propre de l'erreur pour éviter l'affichage "[object Object]" dans l'admin Zura
     if (!saaspayResponse.ok) {
       let extractedError = 'Erreur inconnue de SaasPay';
       if (typeof data === 'object' && data !== null) {
